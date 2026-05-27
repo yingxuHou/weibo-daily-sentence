@@ -1,0 +1,15 @@
+[Unit]
+Description=Weibo Daily Sentence Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/onesentence-oneday/backend
+Environment="PATH=/path/to/onesentence-oneday/backend/venv/bin"
+ExecStart=/path/to/onesentence-oneday/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

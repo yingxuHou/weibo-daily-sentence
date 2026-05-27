@@ -64,3 +64,13 @@ data/images/*
 !data/images/.gitkeep
 static/uploads/*
 !static/uploads/.gitkeep
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Alembic
+alembic/versions/*.pyc
+
+# Docker
+.dockerignore

@@ -9,6 +9,11 @@ engine = create_engine(
     echo=settings.DB_ECHO,
     pool_pre_ping=True,
     pool_recycle=3600,
+    connect_args={
+        "connect_timeout": 30,
+        "read_timeout": 30,
+        "write_timeout": 30,
+    }
 )
 
 # Create session factory

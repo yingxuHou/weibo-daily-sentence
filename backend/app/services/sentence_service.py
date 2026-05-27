@@ -1,0 +1,103 @@
+import random
+from datetime import datetime, timedelta
+from typing import List, Optional
+from pathlib import Path
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from app.core.config import settings
+from app.models.content import Content, ContentStatus
+from loguru import logger
+
+
+class SentenceService:
+    def __init__(self, db: Session):
+        self.db = db
+        self.sentence_file = Path(settings.SENTENCE_FILE_PATH)
+
+    def load_sentences(self) -> List[dict]:
+        """从sentence.md加载所有文案"""
+        if not self.sentence_file.exists():
+            logger.error(f"Sentence file not found: {self.sentence_file}")
+            raise FileNotFoundError(f"Sentence file not found: {self.sentence_file}")
+
+        sentences = []
+        with open(self.sentence_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and line[0].isdigit():
+                    parts = line.split('.', 1)
+                    if len(parts) == 2:
+                        sentence_id = int(parts[0].strip())
+                        text = parts[1].strip()
+                        sentences.append({
+                            'id': sentence_id,
+                            'text': text
+                        })
+
+        logger.info(f"Loaded {len(sentences)} sentences from {self.sentence_file}")
+        return sentences
+
+    def get_used_sentence_ids(self, days: int = 30) -> set:
+        """获取最近N天已使用的文案ID"""
+        cutoff_date = datetime.now() - timedelta(days=days)
+        used_ids = self.db.query(Content.sentence_id).filter(
+            Content.created_at >= cutoff_date
+        ).all()
+        return {id[0] for id in used_ids}
+
+    def select_random_sentences(self, count: int = 30, dedup_days: int = 30) -> List[dict]:
+        """随机选择N条未使用的文案"""
+        all_sentences = self.load_sentences()
+        used_ids = self.get_used_sentence_ids(dedup_days)
+
+        available_sentences = [s for s in all_sentences if s['id'] not in used_ids]
+
+        if len(available_sentences) < count:
+            logger.warning(
+                f"Not enough unused sentences. Available: {len(available_sentences)}, "
+                f"Requested: {count}. Will reuse some sentences."
+            )
+            available_sentences = all_sentences
+
+        selected = random.sample(available_sentences, min(count, len(available_sentences)))
+        logger.info(f"Selected {len(selected)} sentences")
+        return selected
+
+    def create_content_batch(self, sentences: List[dict]) -> List[Content]:
+        """批量创建内容记录"""
+        contents = []
+        for sentence in sentences:
+            content = Content(
+                sentence_id=sentence['id'],
+                text=sentence['text'],
+                status=ContentStatus.PENDING
+            )
+            self.db.add(content)
+            contents.append(content)
+
+        self.db.commit()
+        logger.info(f"Created {len(contents)} content records")
+        return contents
+
+    def generate_content_pool(self, count: int = 30) -> List[Content]:
+        """生成内容池（选择文案并创建记录）"""
+        sentences = self.select_random_sentences(count)
+        contents = self.create_content_batch(sentences)
+        return contents
+
+    def get_content_pool_status(self) -> dict:
+        """获取内容池状态"""
+        pending_count = self.db.query(func.count(Content.id)).filter(
+            Content.status == ContentStatus.PENDING
+        ).scalar()
+
+        approved_count = self.db.query(func.count(Content.id)).filter(
+            Content.status == ContentStatus.APPROVED
+        ).scalar()
+
+        return {
+            'pending': pending_count,
+            'approved': approved_count,
+            'total': pending_count + approved_count,
+            'warning': approved_count < settings.CONTENT_POOL_WARNING_THRESHOLD
+        }

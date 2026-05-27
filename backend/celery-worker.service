@@ -1,0 +1,15 @@
+[Unit]
+Description=Weibo Daily Celery Worker
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/onesentence-oneday/backend
+Environment="PATH=/path/to/onesentence-oneday/backend/venv/bin"
+ExecStart=/path/to/onesentence-oneday/backend/venv/bin/celery -A app.core.celery_app worker --loglevel=info
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

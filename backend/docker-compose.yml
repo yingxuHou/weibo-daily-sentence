@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    container_name: weibo_daily_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=production
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ../logo:/app/logo:ro
+      - ../sentence.md:/app/sentence.md:ro
+    depends_on:
+      - redis
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+
+  redis:
+    image: redis:7-alpine
+    container_name: weibo_daily_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  celery_worker:
+    build: .
+    container_name: weibo_daily_celery_worker
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ../logo:/app/logo:ro
+      - ../sentence.md:/app/sentence.md:ro
+    depends_on:
+      - redis
+      - backend
+    restart: unless-stopped
+    command: celery -A app.core.celery_app worker --loglevel=info
+
+  celery_beat:
+    build: .
+    container_name: weibo_daily_celery_beat
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - backend
+    restart: unless-stopped
+    command: celery -A app.core.celery_app beat --loglevel=info
+
+volumes:
+  redis_data:
