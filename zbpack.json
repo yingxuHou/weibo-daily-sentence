@@ -1,7 +1,1 @@
-{
-  "port": 8000,
-  "healthCheck": {
-    "path": "/health",
-    "timeout": 30
-  }
-}
+{}
