@@ -25,7 +25,7 @@ class Content(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     sentence_id = Column(Integer, nullable=False, comment="文案库序号(1-150)")
     text = Column(Text, nullable=False, comment="文案内容")
-    image_url = Column(String(255), comment="图片URL")
+    image_url = Column(Text, comment="图片URL")  # 改为 Text 类型以支持长 URL
     logo_version = Column(String(20), comment="logo版本(原色/反白)")
     status = Column(
         String(20),  # 改为 String 类型，避免 SQLAlchemy Enum 的序列化问题
