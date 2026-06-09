@@ -95,25 +95,38 @@ class SentenceService:
         if auto_generate_images:
             logger.info(f"Auto-generating images for {len(contents)} contents...")
             from app.services.image_service import ImageService
+            import asyncio
+
             image_service = ImageService()
 
-            for content in contents:
+            for idx, content in enumerate(contents, 1):
                 try:
-                    logger.info(f"Generating image for content {content.id}...")
-                    import asyncio
-                    image_url = asyncio.run(image_service.generate_image(content.text, content.id))
+                    logger.info(f"[{idx}/{len(contents)}] Generating image for content {content.id} (text: {content.text[:30]}...)")
+
+                    # 使用 asyncio.run 调用异步函数
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        image_url = loop.run_until_complete(image_service.generate_image(content.text, content.id))
+                    finally:
+                        loop.close()
 
                     if image_url:
                         content.image_url = image_url
-                        logger.info(f"Image generated for content {content.id}: {image_url}")
+                        self.db.flush()  # 立即写入数据库
+                        logger.info(f"✓ Image generated for content {content.id}: {image_url[:100]}...")
                     else:
-                        logger.warning(f"Failed to generate image for content {content.id}")
+                        logger.warning(f"✗ Failed to generate image for content {content.id} - service returned None")
+
                 except Exception as e:
-                    logger.error(f"Error generating image for content {content.id}: {e}")
+                    logger.error(f"✗ Error generating image for content {content.id}: {str(e)}")
+                    import traceback
+                    logger.error(traceback.format_exc())
                     # 继续处理下一个，不中断整个流程
 
             self.db.commit()
-            logger.info(f"Image generation completed for {len(contents)} contents")
+            success_count = sum(1 for c in contents if c.image_url)
+            logger.info(f"Image generation completed: {success_count}/{len(contents)} images generated successfully")
 
         return contents
 
