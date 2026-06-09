@@ -10,8 +10,13 @@ from app.core.config import settings
 
 class ImageService:
     def __init__(self):
-        self.output_dir = Path(settings.OUTPUT_DIR_PATH)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        # OUTPUT_DIR_PATH 现在是可选的（直接返回 URL 时不需要）
+        try:
+            self.output_dir = Path(settings.OUTPUT_DIR_PATH)
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.warning(f"Could not create output directory: {e}. Will return URLs directly.")
+            self.output_dir = None
 
     async def generate_image_dalle(self, prompt: str, filename: str) -> Optional[str]:
         """使用DALL-E生成图片（支持自定义API基础URL和模型）"""

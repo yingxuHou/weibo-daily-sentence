@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Paths
     SENTENCE_FILE_PATH: str
     LOGO_DIR_PATH: str
-    OUTPUT_DIR_PATH: str
+    OUTPUT_DIR_PATH: Optional[str] = None  # 可选：不配置时直接返回图片 URL
 
     # Content Settings
     DAILY_PUBLISH_TIME: str = "08:00"
