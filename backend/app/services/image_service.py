@@ -20,26 +20,29 @@ class ImageService:
             return None
 
         try:
-            import openai
-            openai.api_key = settings.OPENAI_API_KEY
+            from openai import OpenAI
 
-            # 如果配置了自定义 API 基础 URL（如云雾AI中转），使用它
+            # 创建客户端，支持自定义 base_url
+            client = OpenAI(
+                api_key=settings.OPENAI_API_KEY,
+                base_url=settings.OPENAI_API_BASE if settings.OPENAI_API_BASE else None
+            )
+
             if settings.OPENAI_API_BASE:
-                openai.api_base = settings.OPENAI_API_BASE
                 logger.info(f"Using custom API base: {settings.OPENAI_API_BASE}")
 
-            # 使用配置的模型（默认 dall-e-3，或自定义如 image-2）
             model = settings.OPENAI_IMAGE_MODEL
             logger.info(f"Using image model: {model}")
 
-            response = openai.Image.create(
+            # 新版 OpenAI API (v1.x)
+            response = client.images.generate(
                 model=model,
                 prompt=prompt,
                 n=1,
                 size=f"{settings.IMAGE_WIDTH}x{settings.IMAGE_HEIGHT}"
             )
 
-            image_url = response['data'][0]['url']
+            image_url = response.data[0].url
 
             async with httpx.AsyncClient() as client:
                 img_response = await client.get(image_url)
@@ -54,6 +57,8 @@ class ImageService:
 
         except Exception as e:
             logger.error(f"Failed to generate image with DALL-E: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
 
     async def generate_image_stability(self, prompt: str, filename: str) -> Optional[str]:
