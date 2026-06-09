@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     WEIBO_APP_SECRET: str
     WEIBO_REDIRECT_URI: str
     WEIBO_ACCESS_TOKEN: Optional[str] = None
+    WEIBO_REQUEST_TIMEOUT_SECONDS: float = 20.0
+    WEIBO_MAX_IMAGE_SIZE_MB: int = 20
+    WEIBO_PUBLISH_ENABLED: bool = False
 
     # AI Image Generation
     OPENAI_API_KEY: Optional[str] = None
@@ -44,8 +47,8 @@ class Settings(BaseSettings):
     DUPLICATE_CHECK_DAYS: int = 30
 
     # Image Settings
-    IMAGE_WIDTH: int = 1024  # 改为 1024（符合 16px 倍数规则）
-    IMAGE_HEIGHT: int = 1024
+    IMAGE_WIDTH: int = 1080  # 竖屏 4:5 比例，最适合微博展示
+    IMAGE_HEIGHT: int = 1350
     LOGO_SIZE_RATIO: float = 0.13
     LOGO_MARGIN: int = 20
     BRIGHTNESS_THRESHOLD: int = 128

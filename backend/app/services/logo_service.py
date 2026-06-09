@@ -15,8 +15,8 @@ class LogoService:
 
     def _load_logos(self):
         """加载Logo文件"""
-        color_path = self.logo_dir / "logo_color.png"
-        white_path = self.logo_dir / "logo_white.png"
+        color_path = self.logo_dir / "PUDOW朴道健康水专家-原色.png"
+        white_path = self.logo_dir / "PUDOW朴道健康水专家-反白.png"
 
         if color_path.exists():
             self.color_logo = Image.open(color_path).convert("RGBA")

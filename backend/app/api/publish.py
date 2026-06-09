@@ -1,12 +1,14 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime
 
 from app.core.database import get_db
 from app.models.content import Content, ContentStatus, PublishLog, PublishStatus
-from app.services.weibo_service import WeiboService
+from app.core.config import settings
+from app.publishers.weibo import WeiboPublisher
+from app.services.publication_service import PublicationError, PublicationService
 from loguru import logger
 
 router = APIRouter()
@@ -43,55 +45,22 @@ async def publish_content(
         raise HTTPException(status_code=400, detail="Content has no image")
 
     try:
-        weibo_service = WeiboService()
-        result = weibo_service.publish_status(content.text, content.image_url)
-
-        if not result:
-            publish_log = PublishLog(
-                content_id=content.id,
-                status=PublishStatus.FAILED,
-                error_msg="Failed to publish to Weibo"
-            )
-            db.add(publish_log)
-            db.commit()
-            raise HTTPException(status_code=500, detail="Failed to publish to Weibo")
-
-        weibo_id = str(result.get('id'))
-        published_at = datetime.now()
-
-        content.status = ContentStatus.PUBLISHED
-        content.published_at = published_at
-
-        publish_log = PublishLog(
-            content_id=content.id,
-            weibo_id=weibo_id,
-            status=PublishStatus.SUCCESS,
-            published_at=published_at
+        result = PublicationService(db).publish_content(content.id)
+        published_at = content.published_at or datetime.now()
+        logger.info(
+            "Published content {} to Weibo, weibo_id: {}",
+            content.id,
+            result.weibo_id,
         )
-        db.add(publish_log)
-        db.commit()
-
-        logger.info(f"Published content {content.id} to Weibo, weibo_id: {weibo_id}")
-
         return PublishResponse(
             success=True,
             message="Content published successfully",
-            weibo_id=weibo_id,
+            weibo_id=result.weibo_id,
             published_at=published_at
         )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to publish content {request.content_id}: {e}")
-        publish_log = PublishLog(
-            content_id=content.id,
-            status=PublishStatus.FAILED,
-            error_msg=str(e)
-        )
-        db.add(publish_log)
-        db.commit()
-        raise HTTPException(status_code=500, detail=str(e))
+    except PublicationError as exc:
+        logger.error("Failed to publish content {}: {}", request.content_id, exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.get("/next")
@@ -114,7 +83,6 @@ async def get_next_publishable_content(db: Session = Depends(get_db)):
 
 @router.post("/schedule")
 async def schedule_daily_publish(
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """手动触发定时发布任务"""
@@ -126,39 +94,38 @@ async def schedule_daily_publish(
         return {"success": False, "message": "No approved content available"}
 
     try:
-        weibo_service = WeiboService()
-        result = weibo_service.publish_status(content.text, content.image_url)
-
-        if not result:
-            return {"success": False, "message": "Failed to publish to Weibo"}
-
-        weibo_id = str(result.get('id'))
-        published_at = datetime.now()
-
-        content.status = ContentStatus.PUBLISHED
-        content.published_at = published_at
-
-        publish_log = PublishLog(
-            content_id=content.id,
-            weibo_id=weibo_id,
-            status=PublishStatus.SUCCESS,
-            published_at=published_at
-        )
-        db.add(publish_log)
-        db.commit()
-
+        result = PublicationService(db).publish_content(content.id)
         logger.info(f"Scheduled publish completed for content {content.id}")
-
         return {
             "success": True,
             "message": "Content published successfully",
             "content_id": content.id,
-            "weibo_id": weibo_id
+            "weibo_id": result.weibo_id
         }
+    except PublicationError as exc:
+        logger.error("Scheduled publish failed: {}", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    except Exception as e:
-        logger.error(f"Scheduled publish failed: {e}")
-        return {"success": False, "message": str(e)}
+
+@router.get("/weibo/config")
+async def get_weibo_config():
+    """Check readiness without exposing credentials."""
+    publisher = WeiboPublisher()
+    return {
+        "publish_enabled": settings.WEIBO_PUBLISH_ENABLED,
+        "credentials_configured": publisher.is_configured,
+        "daily_publish_time": settings.DAILY_PUBLISH_TIME,
+        "redirect_uri": settings.WEIBO_REDIRECT_URI,
+    }
+
+
+@router.get("/weibo/authorize-url")
+async def get_weibo_authorize_url(state: Optional[str] = None):
+    """Return the official OAuth authorization URL used during setup."""
+    try:
+        return {"authorize_url": WeiboPublisher().get_authorize_url(state)}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.get("/logs")

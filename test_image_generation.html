@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试图片生成</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #5c7cfa;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #4c6ef5;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            display: none;
+        }
+        .result.show {
+            display: block;
+        }
+        .success {
+            color: #37b24d;
+        }
+        .error {
+            color: #f03e3e;
+        }
+        img {
+            max-width: 100%;
+            margin-top: 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .loading {
+            display: none;
+            margin-top: 10px;
+            color: #5c7cfa;
+        }
+        .loading.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 测试 AI 图片生成</h1>
+
+        <div class="input-group">
+            <label for="contentId">Content ID (已有内容的 ID，如 1-11)：</label>
+            <input type="number" id="contentId" value="8" min="1" />
+        </div>
+
+        <button onclick="generateImage()">生成图片</button>
+        <button onclick="checkPool()">查看内容池状态</button>
+
+        <div class="loading" id="loading">
+            ⏳ 正在生成图片，请稍候（约需 30-60 秒）...
+        </div>
+
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://weibo-daily-sentence.zeabur.app';
+
+        async function generateImage() {
+            const contentId = document.getElementById('contentId').value;
+            const resultDiv = document.getElementById('result');
+            const loadingDiv = document.getElementById('loading');
+
+            if (!contentId) {
+                alert('请输入 Content ID');
+                return;
+            }
+
+            resultDiv.classList.remove('show');
+            loadingDiv.classList.add('show');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/content/${contentId}/generate-image`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                loadingDiv.classList.remove('show');
+                resultDiv.classList.add('show');
+
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <h3 class="success">✅ 生成成功！</h3>
+                        <p><strong>图片 URL:</strong></p>
+                        <p style="word-break: break-all; font-size: 12px;">${data.image_url}</p>
+                        <img src="${data.image_url}" alt="Generated Image" />
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <h3 class="error">❌ 生成失败</h3>
+                        <p>${data.detail || data.message || '未知错误'}</p>
+                    `;
+                }
+            } catch (error) {
+                loadingDiv.classList.remove('show');
+                resultDiv.classList.add('show');
+                resultDiv.innerHTML = `
+                    <h3 class="error">❌ 请求失败</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+
+        async function checkPool() {
+            const resultDiv = document.getElementById('result');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/content/pool/status`);
+                const data = await response.json();
+
+                resultDiv.classList.add('show');
+                resultDiv.innerHTML = `
+                    <h3>📊 内容池状态</h3>
+                    <p><strong>待审核:</strong> ${data.pending} 条</p>
+                    <p><strong>已通过:</strong> ${data.approved} 条</p>
+                    <p><strong>总计:</strong> ${data.total} 条</p>
+                    <p style="margin-top: 15px; color: #666;">💡 提示：可以为 Content ID 1-${data.total} 生成图片</p>
+                `;
+            } catch (error) {
+                resultDiv.classList.add('show');
+                resultDiv.innerHTML = `
+                    <h3 class="error">❌ 获取失败</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+
+        // 页面加载时自动检查内容池状态
+        window.onload = checkPool;
+    </script>
+</body>
+</html>
