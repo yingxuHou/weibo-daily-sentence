@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # AI Image Generation
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_API_BASE: Optional[str] = None  # 自定义 API 基础 URL（用于中转服务）
-    OPENAI_IMAGE_MODEL: str = "dall-e-3"  # 默认模型，可以改为 image-2
+    OPENAI_IMAGE_MODEL: str = "gpt-image-2"  # 图片生成模型（云雾AI的模型名）
     STABILITY_API_KEY: Optional[str] = None
 
     # Application
