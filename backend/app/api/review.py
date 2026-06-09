@@ -35,7 +35,8 @@ async def review_content(
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
 
-    if content.status != ContentStatus.PENDING:
+    # 使用字符串值比较，因为数据库中存储的是字符串
+    if content.status != ContentStatus.PENDING.value:
         raise HTTPException(
             status_code=400,
             detail=f"Content is not pending review (current status: {content.status})"
@@ -43,12 +44,12 @@ async def review_content(
 
     try:
         if request.approved:
-            content.status = ContentStatus.APPROVED
+            content.status = ContentStatus.APPROVED.value
             content.reviewed_at = datetime.now()
             content.reviewer_id = request.reviewer_id
             message = "Content approved"
         else:
-            content.status = ContentStatus.REJECTED
+            content.status = ContentStatus.REJECTED.value
             content.reviewed_at = datetime.now()
             content.reviewer_id = request.reviewer_id
             content.reject_reason = request.reject_reason or "No reason provided"
@@ -61,7 +62,7 @@ async def review_content(
             success=True,
             message=message,
             content_id=content_id,
-            status=content.status.value
+            status=content.status
         )
     except Exception as e:
         logger.error(f"Failed to review content {content_id}: {e}")
@@ -72,14 +73,14 @@ async def review_content(
 @router.get("/pending/count")
 async def get_pending_count(db: Session = Depends(get_db)):
     """获取待审核内容数量"""
-    count = db.query(Content).filter(Content.status == ContentStatus.PENDING).count()
+    count = db.query(Content).filter(Content.status == ContentStatus.PENDING.value).count()
     return {"pending_count": count}
 
 
 @router.get("/approved/count")
 async def get_approved_count(db: Session = Depends(get_db)):
     """获取已通过内容数量"""
-    count = db.query(Content).filter(Content.status == ContentStatus.APPROVED).count()
+    count = db.query(Content).filter(Content.status == ContentStatus.APPROVED.value).count()
     return {"approved_count": count}
 
 
@@ -93,14 +94,14 @@ async def reset_review_status(
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
 
-    if content.status == ContentStatus.PUBLISHED:
+    if content.status == ContentStatus.PUBLISHED.value:
         raise HTTPException(
             status_code=400,
             detail="Cannot reset published content"
         )
 
     try:
-        content.status = ContentStatus.PENDING
+        content.status = ContentStatus.PENDING.value
         content.reviewed_at = None
         content.reviewer_id = None
         content.reject_reason = None
