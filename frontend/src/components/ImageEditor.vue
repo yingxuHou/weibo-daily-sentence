@@ -355,42 +355,57 @@ function getLayerName(obj) {
 
 async function generateImage() {
   generating.value = true
+  console.log('[DEBUG] 开始生成，contentId:', props.contentId)
+  console.log('[DEBUG] initialText:', props.initialText)
+
   try {
     // 清空画布，移除所有旧内容
     canvas.value.clear()
     canvas.value.backgroundColor = '#f5f5f5'
     backgroundImage.value = null
+    console.log('[DEBUG] 画布已清空')
 
     // 步骤1: 生成AI背景图
     const API_BASE = import.meta.env.VITE_API_BASE || 'https://weibo-daily-sentence.zeabur.app'
+    console.log('[DEBUG] API_BASE:', API_BASE)
+    console.log('[DEBUG] 开始调用 API 生成背景图...')
+
     const response = await fetch(`${API_BASE}/api/content/${props.contentId}/generate-image`, {
       method: 'POST'
     })
     const data = await response.json()
+    console.log('[DEBUG] API 响应:', data)
 
     if (data.success && data.image_url) {
-      // 步骤2: 加载背景图
+      console.log('[DEBUG] 步骤2: 加载背景图...')
       await setBackgroundImage(data.image_url)
+      console.log('[DEBUG] 背景图加载完成')
 
-      // 步骤3: 分析背景亮度，智能选择Logo版本
+      console.log('[DEBUG] 步骤3: 分析背景亮度...')
       const brightness = await analyzeBackgroundBrightness()
-      const smartLogoVersion = brightness > 128 ? 'color' : 'white' // 亮背景用原色，暗背景用反白
+      const smartLogoVersion = brightness > 128 ? 'color' : 'white'
+      console.log('[DEBUG] 背景亮度:', brightness, '选择Logo版本:', smartLogoVersion)
 
-      // 步骤4: 添加艺术字文字（带描边和阴影）
+      console.log('[DEBUG] 步骤4: 添加艺术字文字...')
       await addStyledText(props.initialText, brightness)
+      console.log('[DEBUG] 文字添加完成')
 
-      // 步骤5: 自动添加Logo水印
+      console.log('[DEBUG] 步骤5: 添加Logo水印...')
       await addSmartLogo(smartLogoVersion)
+      console.log('[DEBUG] Logo添加完成')
 
       ElMessage.success('内容生成成功！背景、文字、Logo已自动配置')
       emit('imageGenerated', data.image_url)
+      console.log('[DEBUG] 全部完成！')
     } else {
       throw new Error(data.message || '生成失败')
     }
   } catch (error) {
+    console.error('[DEBUG] 错误:', error)
     ElMessage.error('生成失败: ' + error.message)
   } finally {
     generating.value = false
+    console.log('[DEBUG] 结束')
   }
 }
 
