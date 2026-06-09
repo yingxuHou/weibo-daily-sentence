@@ -20,21 +20,28 @@ class SentenceService:
             logger.error(f"Sentence file not found: {self.sentence_file}")
             raise FileNotFoundError(f"Sentence file not found: {self.sentence_file}")
 
+        logger.info(f"Loading sentences from: {self.sentence_file.absolute()}")
+
         sentences = []
+        sentence_id = 1
+        line_count = 0
+        empty_lines = 0
+
         with open(self.sentence_file, 'r', encoding='utf-8') as f:
             for line in f:
+                line_count += 1
                 line = line.strip()
-                if line and line[0].isdigit():
-                    parts = line.split('.', 1)
-                    if len(parts) == 2:
-                        sentence_id = int(parts[0].strip())
-                        text = parts[1].strip()
-                        sentences.append({
-                            'id': sentence_id,
-                            'text': text
-                        })
+                # 跳过空行
+                if line:
+                    sentences.append({
+                        'id': sentence_id,
+                        'text': line
+                    })
+                    sentence_id += 1
+                else:
+                    empty_lines += 1
 
-        logger.info(f"Loaded {len(sentences)} sentences from {self.sentence_file}")
+        logger.info(f"Loaded {len(sentences)} sentences from {self.sentence_file} (total lines: {line_count}, empty: {empty_lines})")
         return sentences
 
     def get_used_sentence_ids(self, days: int = 30) -> set:
