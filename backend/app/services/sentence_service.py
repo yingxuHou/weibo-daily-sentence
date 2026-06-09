@@ -77,7 +77,7 @@ class SentenceService:
             content = Content(
                 sentence_id=sentence['id'],
                 text=sentence['text'],
-                status=ContentStatus.PENDING.value  # 使用 .value 获取实际的中文值
+                status='待审核'  # 直接使用字符串字面量
             )
             self.db.add(content)
             contents.append(content)
