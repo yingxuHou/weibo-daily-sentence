@@ -44,8 +44,8 @@ class Settings(BaseSettings):
     DUPLICATE_CHECK_DAYS: int = 30
 
     # Image Settings
-    IMAGE_WIDTH: int = 1080
-    IMAGE_HEIGHT: int = 1080
+    IMAGE_WIDTH: int = 1024  # 改为 1024（符合 16px 倍数规则）
+    IMAGE_HEIGHT: int = 1024
     LOGO_SIZE_RATIO: float = 0.13
     LOGO_MARGIN: int = 20
     BRIGHTNESS_THRESHOLD: int = 128
