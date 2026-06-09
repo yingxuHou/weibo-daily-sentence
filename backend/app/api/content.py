@@ -62,6 +62,19 @@ async def generate_content_pool(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{content_id}", response_model=ContentResponse)
+async def get_content_by_id(
+    content_id: int,
+    db: Session = Depends(get_db)
+):
+    """获取单个内容详情"""
+    content = db.query(Content).filter(Content.id == content_id).first()
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+
+    return ContentResponse.from_orm(content)
+
+
 @router.post("/{content_id}/generate-image")
 async def generate_image_for_content(
     content_id: int,
