@@ -110,6 +110,50 @@
               <button @click="updateTextAlign('right')" :class="{active: textAlign === 'right'}">右对齐</button>
             </div>
           </div>
+
+          <!-- 艺术字效果 -->
+          <div class="property-group">
+            <h4>艺术字效果</h4>
+
+            <div class="property-field">
+              <label>描边颜色</label>
+              <div class="color-picker">
+                <input type="color" v-model="strokeColor" @input="updateStroke">
+                <input type="text" v-model="strokeColor" @input="updateStroke" class="color-input">
+              </div>
+            </div>
+
+            <div class="property-field">
+              <label>描边宽度</label>
+              <input type="range" v-model.number="strokeWidth" @input="updateStroke" min="0" max="10" step="1">
+              <span>{{ strokeWidth }}px</span>
+            </div>
+
+            <div class="property-field">
+              <label>阴影模糊</label>
+              <input type="range" v-model.number="shadowBlur" @input="updateShadow" min="0" max="30" step="1">
+              <span>{{ shadowBlur }}px</span>
+            </div>
+
+            <div class="property-row">
+              <div class="property-field">
+                <label>阴影 X</label>
+                <input type="number" v-model.number="shadowX" @input="updateShadow" min="-20" max="20">
+              </div>
+              <div class="property-field">
+                <label>阴影 Y</label>
+                <input type="number" v-model.number="shadowY" @input="updateShadow" min="-20" max="20">
+              </div>
+            </div>
+
+            <div class="property-field">
+              <label>阴影颜色</label>
+              <div class="color-picker">
+                <input type="color" v-model="shadowColor" @input="updateShadow">
+                <input type="text" v-model="shadowColor" @input="updateShadow" class="color-input">
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Logo 属性 -->
@@ -217,6 +261,14 @@ const textBold = ref(true)
 const textItalic = ref(false)
 const textAlign = ref('center')
 
+// Artistic text effects
+const strokeColor = ref('rgba(0,0,0,0.4)')
+const strokeWidth = ref(2)
+const shadowBlur = ref(8)
+const shadowX = ref(2)
+const shadowY = ref(2)
+const shadowColor = ref('rgba(0,0,0,0.5)')
+
 // Logo properties
 const logoVersion = ref('color')
 const logoWidth = ref(120)
@@ -270,6 +322,16 @@ function loadObjectProperties(obj) {
     textBold.value = obj.fontWeight === 'bold'
     textItalic.value = obj.fontStyle === 'italic'
     textAlign.value = obj.textAlign
+
+    // 加载艺术字效果属性
+    strokeColor.value = obj.stroke || 'rgba(0,0,0,0.4)'
+    strokeWidth.value = obj.strokeWidth || 0
+    if (obj.shadow) {
+      shadowBlur.value = obj.shadow.blur || 0
+      shadowX.value = obj.shadow.offsetX || 0
+      shadowY.value = obj.shadow.offsetY || 0
+      shadowColor.value = obj.shadow.color || 'rgba(0,0,0,0.5)'
+    }
   } else if (obj.type === 'image') {
     logoWidth.value = obj.width * obj.scaleX
     logoOpacity.value = obj.opacity * 100
@@ -294,6 +356,12 @@ function getLayerName(obj) {
 async function generateImage() {
   generating.value = true
   try {
+    // 清空画布，移除所有旧内容
+    canvas.value.clear()
+    canvas.value.backgroundColor = '#f5f5f5'
+    backgroundImage.value = null
+
+    // 步骤1: 生成AI背景图
     const API_BASE = import.meta.env.VITE_API_BASE || 'https://weibo-daily-sentence.zeabur.app'
     const response = await fetch(`${API_BASE}/api/content/${props.contentId}/generate-image`, {
       method: 'POST'
@@ -301,17 +369,126 @@ async function generateImage() {
     const data = await response.json()
 
     if (data.success && data.image_url) {
+      // 步骤2: 加载背景图
       await setBackgroundImage(data.image_url)
-      ElMessage.success('背景图生成成功！')
+
+      // 步骤3: 分析背景亮度，智能选择Logo版本
+      const brightness = await analyzeBackgroundBrightness()
+      const smartLogoVersion = brightness > 128 ? 'color' : 'white' // 亮背景用原色，暗背景用反白
+
+      // 步骤4: 添加艺术字文字（带描边和阴影）
+      await addStyledText(props.initialText, brightness)
+
+      // 步骤5: 自动添加Logo水印
+      await addSmartLogo(smartLogoVersion)
+
+      ElMessage.success('内容生成成功！背景、文字、Logo已自动配置')
       emit('imageGenerated', data.image_url)
     } else {
       throw new Error(data.message || '生成失败')
     }
   } catch (error) {
-    ElMessage.error('生成背景图失败: ' + error.message)
+    ElMessage.error('生成失败: ' + error.message)
   } finally {
     generating.value = false
   }
+}
+
+// 分析背景图亮度
+async function analyzeBackgroundBrightness() {
+  if (!backgroundImage.value) return 128
+
+  try {
+    const imgElement = backgroundImage.value.getElement()
+    const tempCanvas = document.createElement('canvas')
+    const ctx = tempCanvas.getContext('2d')
+
+    // 缩小取样提高性能
+    tempCanvas.width = 100
+    tempCanvas.height = 100
+    ctx.drawImage(imgElement, 0, 0, 100, 100)
+
+    const imageData = ctx.getImageData(0, 0, 100, 100)
+    const data = imageData.data
+    let totalBrightness = 0
+
+    // 计算平均亮度
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i]
+      const g = data[i + 1]
+      const b = data[i + 2]
+      totalBrightness += (r + g + b) / 3
+    }
+
+    return totalBrightness / (100 * 100)
+  } catch (error) {
+    console.error('亮度分析失败:', error)
+    return 128 // 默认中等亮度
+  }
+}
+
+// 添加艺术字文字（带描边、阴影、渐变）
+async function addStyledText(text, brightness) {
+  // 根据背景亮度智能选择文字颜色
+  const isDark = brightness < 128
+  const textColor = isDark ? '#ffffff' : '#1a2721'
+  const strokeColor = isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.8)'
+
+  const styledText = new fabric.Text(text, {
+    id: 'main-text',
+    left: canvas.value.width / 2,
+    top: canvas.value.height / 2,
+    fontSize: 56,
+    fontFamily: "'PingFang SC', sans-serif",
+    fill: textColor,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    lineHeight: 1.5,
+    originX: 'center',
+    originY: 'center',
+    // 艺术字效果
+    stroke: strokeColor,
+    strokeWidth: 3,
+    shadow: {
+      color: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)',
+      blur: 10,
+      offsetX: 2,
+      offsetY: 2
+    }
+  })
+
+  canvas.value.add(styledText)
+  canvas.value.renderAll()
+  updateCanvasObjects()
+}
+
+// 智能添加Logo水印
+async function addSmartLogo(version) {
+  logoVersion.value = version
+  const logoUrl = getLogoUrl(version)
+
+  return new Promise((resolve) => {
+    fabric.Image.fromURL(logoUrl, (img) => {
+      if (!img) {
+        resolve()
+        return
+      }
+
+      img.set({
+        id: 'smart-logo',
+        left: canvas.value.width - 180,
+        top: canvas.value.height - 100,
+        scaleX: 0.35,
+        scaleY: 0.35,
+        opacity: 0.95
+      })
+
+      canvas.value.add(img)
+      canvas.value.renderAll()
+      updateCanvasObjects()
+      resolve()
+    }, { crossOrigin: 'anonymous' })
+  })
 }
 
 function setBackgroundImage(url) {
@@ -358,14 +535,23 @@ function addInitialText() {
     id: 'main-text',
     left: canvas.value.width / 2,
     top: canvas.value.height / 2,
-    fontSize: 48,
+    fontSize: 56,
     fontFamily: "'PingFang SC', sans-serif",
-    fill: '#1a2721',
+    fill: '#ffffff',
     fontWeight: 'bold',
     textAlign: 'center',
-    lineHeight: 1.4,
+    lineHeight: 1.5,
     originX: 'center',
-    originY: 'center'
+    originY: 'center',
+    // 艺术字效果
+    stroke: 'rgba(0,0,0,0.4)',
+    strokeWidth: 2,
+    shadow: {
+      color: 'rgba(0,0,0,0.5)',
+      blur: 8,
+      offsetX: 2,
+      offsetY: 2
+    }
   })
   canvas.value.add(text)
   canvas.value.setActiveObject(text)
@@ -483,6 +669,29 @@ function updateTextAlign(align) {
   textAlign.value = align
   if (selectedObject.value && selectedObject.value.type === 'text') {
     selectedObject.value.set('textAlign', align)
+    canvas.value.renderAll()
+  }
+}
+
+// Artistic effects update functions
+function updateStroke() {
+  if (selectedObject.value && selectedObject.value.type === 'text') {
+    selectedObject.value.set({
+      stroke: strokeColor.value,
+      strokeWidth: strokeWidth.value
+    })
+    canvas.value.renderAll()
+  }
+}
+
+function updateShadow() {
+  if (selectedObject.value && selectedObject.value.type === 'text') {
+    selectedObject.value.set('shadow', {
+      color: shadowColor.value,
+      blur: shadowBlur.value,
+      offsetX: shadowX.value,
+      offsetY: shadowY.value
+    })
     canvas.value.renderAll()
   }
 }
