@@ -83,7 +83,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useContentStore } from '@/stores/content'
 import { generateContentPool, getPublishStats, getPublishLogs } from '@/api/content'
@@ -111,24 +111,77 @@ async function loadData() {
 
 async function handleGenerateContent() {
   try {
-    const result = await ElMessageBox.prompt('请输入生成数量', '生成内容池', {
-      confirmButtonText: '生成',
+    const result = await ElMessageBox({
+      title: '生成内容池',
+      message: h('div', null, [
+        h('p', { style: 'margin-bottom: 12px; font-size: 14px;' }, '请配置生成参数：'),
+        h('div', { style: 'margin-bottom: 12px;' }, [
+          h('label', { style: 'display: block; margin-bottom: 6px; font-size: 13px; color: #666;' }, '生成数量：'),
+          h('input', {
+            type: 'number',
+            value: '30',
+            min: '1',
+            max: '100',
+            id: 'countInput',
+            style: 'width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;'
+          })
+        ]),
+        h('div', { style: 'display: flex; align-items: center; gap: 8px; padding: 12px; background: #f5f5f5; border-radius: 4px;' }, [
+          h('input', {
+            type: 'checkbox',
+            id: 'autoGenCheckbox',
+            checked: true,
+            style: 'width: 18px; height: 18px; cursor: pointer;'
+          }),
+          h('label', {
+            for: 'autoGenCheckbox',
+            style: 'flex: 1; font-size: 14px; cursor: pointer; user-select: none;'
+          }, '自动生成 AI 图片（每张约 30-60 秒）')
+        ]),
+        h('p', { style: 'margin-top: 12px; font-size: 12px; color: #999;' }, '提示：勾选后会自动为每条内容生成 AI 背景图、文字和 Logo，整个过程可能需要较长时间。')
+      ]),
+      confirmButtonText: '开始生成',
       cancelButtonText: '取消',
-      inputPattern: /^\d+$/,
-      inputErrorMessage: '请输入有效数字',
-      inputValue: '30'
+      beforeClose: (action, instance, done) => {
+        if (action === 'confirm') {
+          const count = document.getElementById('countInput').value
+          const autoGen = document.getElementById('autoGenCheckbox').checked
+          if (!count || count < 1) {
+            ElMessage.warning('请输入有效的生成数量')
+            return
+          }
+          instance.confirmButtonLoading = true
+          instance.confirmButtonText = '生成中...'
+          done()
+        } else {
+          done()
+        }
+      }
     })
+
+    const count = parseInt(document.getElementById('countInput').value)
+    const autoGen = document.getElementById('autoGenCheckbox').checked
+
     generating.value = true
-    const res = await generateContentPool(parseInt(result.value))
+
+    if (autoGen) {
+      ElMessage.info(`正在生成 ${count} 条内容并自动配图，预计需要 ${Math.ceil(count * 0.75)} 分钟，请耐心等待...`)
+    }
+
+    const res = await generateContentPool(count, autoGen)
 
     if (res.count === 0) {
       ElMessage.warning('生成了 0 条内容，可能是 sentence.md 文件未找到或数据库错误，请检查后端日志')
     } else {
-      ElMessage.success(`成功生成 ${res.count} 条内容`)
+      if (autoGen) {
+        ElMessage.success(`成功生成 ${res.count} 条内容，并自动配图完成！`)
+      } else {
+        ElMessage.success(`成功生成 ${res.count} 条内容`)
+      }
     }
     await loadData()
   } catch (error) {
-    if (error !== 'cancel') {
+    if (error !== 'cancel' && error !== 'close') {
       console.error('生成失败:', error)
       ElMessage.error(`生成失败: ${error.response?.data?.detail || error.message || '未知错误'}`)
     }

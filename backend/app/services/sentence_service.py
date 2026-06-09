@@ -86,10 +86,35 @@ class SentenceService:
         logger.info(f"Created {len(contents)} content records")
         return contents
 
-    def generate_content_pool(self, count: int = 30) -> List[Content]:
-        """生成内容池（选择文案并创建记录）"""
+    def generate_content_pool(self, count: int = 30, auto_generate_images: bool = False) -> List[Content]:
+        """生成内容池（选择文案并创建记录，可选自动生成图片）"""
         sentences = self.select_random_sentences(count)
         contents = self.create_content_batch(sentences)
+
+        # 如果启用自动生成图片
+        if auto_generate_images:
+            logger.info(f"Auto-generating images for {len(contents)} contents...")
+            from app.services.image_service import ImageService
+            image_service = ImageService()
+
+            for content in contents:
+                try:
+                    logger.info(f"Generating image for content {content.id}...")
+                    import asyncio
+                    image_url = asyncio.run(image_service.generate_image(content.text, content.id))
+
+                    if image_url:
+                        content.image_url = image_url
+                        logger.info(f"Image generated for content {content.id}: {image_url}")
+                    else:
+                        logger.warning(f"Failed to generate image for content {content.id}")
+                except Exception as e:
+                    logger.error(f"Error generating image for content {content.id}: {e}")
+                    # 继续处理下一个，不中断整个流程
+
+            self.db.commit()
+            logger.info(f"Image generation completed for {len(contents)} contents")
+
         return contents
 
     def get_content_pool_status(self) -> dict:

@@ -32,6 +32,7 @@ class ContentResponse(BaseModel):
 
 class GenerateContentRequest(BaseModel):
     count: int = 30
+    auto_generate_images: bool = False  # 是否自动生成图片
 
 
 class GenerateContentResponse(BaseModel):
@@ -46,14 +47,21 @@ async def generate_content_pool(
     request: GenerateContentRequest,
     db: Session = Depends(get_db)
 ):
-    """生成内容池（选择文案并创建记录）"""
+    """生成内容池（选择文案并创建记录，可选自动生成图片）"""
     try:
         sentence_service = SentenceService(db)
-        contents = sentence_service.generate_content_pool(request.count)
+        contents = sentence_service.generate_content_pool(
+            request.count,
+            auto_generate_images=request.auto_generate_images
+        )
+
+        message = f"Successfully generated {len(contents)} contents"
+        if request.auto_generate_images:
+            message += " with AI images"
 
         return GenerateContentResponse(
             success=True,
-            message=f"Successfully generated {len(contents)} contents",
+            message=message,
             count=len(contents),
             contents=[ContentResponse.from_orm(c) for c in contents]
         )

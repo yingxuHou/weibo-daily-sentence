@@ -1,8 +1,11 @@
 import request from '@/utils/request'
 
 // 生成内容池
-export function generateContentPool(count = 30) {
-  return request.post('/content/generate', { count })
+export function generateContentPool(count = 30, autoGenerateImages = false) {
+  return request.post('/content/generate', {
+    count,
+    auto_generate_images: autoGenerateImages
+  })
 }
 
 // 获取内容列表
