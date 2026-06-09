@@ -30,33 +30,42 @@ class ImageService:
             # 创建客户端，支持自定义 base_url
             client = OpenAI(
                 api_key=settings.OPENAI_API_KEY,
-                base_url=settings.OPENAI_API_BASE if settings.OPENAI_API_BASE else None
+                base_url=settings.OPENAI_API_BASE if settings.OPENAI_API_BASE else None,
+                timeout=120.0  # 增加超时时间到 120 秒
             )
 
             if settings.OPENAI_API_BASE:
                 logger.info(f"Using custom API base: {settings.OPENAI_API_BASE}")
 
             model = settings.OPENAI_IMAGE_MODEL
-            logger.info(f"Using image model: {model}")
+            size = f"{settings.IMAGE_WIDTH}x{settings.IMAGE_HEIGHT}"
+            logger.info(f"Using image model: {model}, size: {size}")
+            logger.info(f"Prompt: {prompt[:100]}...")
 
             # 新版 OpenAI API (v1.x)
+            logger.info("Calling images.generate API...")
             response = client.images.generate(
                 model=model,
                 prompt=prompt,
                 n=1,
-                size=f"{settings.IMAGE_WIDTH}x{settings.IMAGE_HEIGHT}"
+                size=size,
+                quality="high",  # 添加画质参数
+                response_format="url"  # 明确指定返回 URL
             )
 
-            image_url = response.data[0].url
-            logger.info(f"Generated image URL: {image_url}")
+            logger.info(f"API response received: {response}")
 
-            # 直接返回 URL，不下载到本地
-            # 在生产环境（如 Zeabur）中，容器文件系统是临时的
-            # 如果需要持久化，应该使用对象存储（S3、OSS等）
-            return image_url
+            # 尝试获取图片 URL
+            if hasattr(response, 'data') and len(response.data) > 0:
+                image_url = response.data[0].url
+                logger.info(f"Generated image URL: {image_url}")
+                return image_url
+            else:
+                logger.error(f"Unexpected response format: {response}")
+                return None
 
         except Exception as e:
-            logger.error(f"Failed to generate image with DALL-E: {e}")
+            logger.error(f"Failed to generate image with DALL-E: {type(e).__name__}: {e}")
             import traceback
             logger.error(traceback.format_exc())
             return None
