@@ -80,3 +80,25 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "version": settings.APP_VERSION}
+
+
+@app.get("/debug/sentence-file")
+async def debug_sentence_file():
+    """调试端点：检查 sentence.md 文件状态"""
+    import os
+    from pathlib import Path
+
+    sentence_path = Path(settings.SENTENCE_FILE_PATH)
+
+    return {
+        "configured_path": settings.SENTENCE_FILE_PATH,
+        "exists": sentence_path.exists(),
+        "is_file": sentence_path.is_file() if sentence_path.exists() else False,
+        "absolute_path": str(sentence_path.absolute()),
+        "cwd": os.getcwd(),
+        "backend_sentence_exists": Path("./sentence.md").exists(),
+        "backend_sentence_abs": str(Path("./sentence.md").absolute()),
+        "app_sentence_exists": Path("/app/sentence.md").exists() if os.path.exists("/app") else False,
+        "listdir_cwd": os.listdir(".")[:20] if os.path.exists(".") else [],
+        "listdir_app": os.listdir("/app")[:20] if os.path.exists("/app") else []
+    }
