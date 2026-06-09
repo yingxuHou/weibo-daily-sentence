@@ -43,17 +43,12 @@ class ImageService:
             )
 
             image_url = response.data[0].url
+            logger.info(f"Generated image URL: {image_url}")
 
-            async with httpx.AsyncClient() as client:
-                img_response = await client.get(image_url)
-                img_response.raise_for_status()
-
-                output_path = self.output_dir / filename
-                with open(output_path, 'wb') as f:
-                    f.write(img_response.content)
-
-                logger.info(f"Generated image saved to {output_path}")
-                return str(output_path)
+            # 直接返回 URL，不下载到本地
+            # 在生产环境（如 Zeabur）中，容器文件系统是临时的
+            # 如果需要持久化，应该使用对象存储（S3、OSS等）
+            return image_url
 
         except Exception as e:
             logger.error(f"Failed to generate image with DALL-E: {e}")
