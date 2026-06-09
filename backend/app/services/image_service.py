@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 from typing import Optional
 import httpx
@@ -13,7 +14,7 @@ class ImageService:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     async def generate_image_dalle(self, prompt: str, filename: str) -> Optional[str]:
-        """使用DALL-E生成图片"""
+        """使用DALL-E生成图片（支持自定义API基础URL和模型）"""
         if not settings.OPENAI_API_KEY:
             logger.error("OPENAI_API_KEY not configured")
             return None
@@ -22,7 +23,17 @@ class ImageService:
             import openai
             openai.api_key = settings.OPENAI_API_KEY
 
+            # 如果配置了自定义 API 基础 URL（如云雾AI中转），使用它
+            if settings.OPENAI_API_BASE:
+                openai.api_base = settings.OPENAI_API_BASE
+                logger.info(f"Using custom API base: {settings.OPENAI_API_BASE}")
+
+            # 使用配置的模型（默认 dall-e-3，或自定义如 image-2）
+            model = settings.OPENAI_IMAGE_MODEL
+            logger.info(f"Using image model: {model}")
+
             response = openai.Image.create(
+                model=model,
                 prompt=prompt,
                 n=1,
                 size=f"{settings.IMAGE_WIDTH}x{settings.IMAGE_HEIGHT}"
@@ -92,7 +103,7 @@ class ImageService:
     async def generate_image(self, text: str, content_id: int) -> Optional[str]:
         """生成图片（自动选择可用的API）"""
         prompt = self._create_prompt(text)
-        filename = f"content_{content_id}_{int(os.time())}.png"
+        filename = f"content_{content_id}_{int(time.time())}.png"
 
         if settings.OPENAI_API_KEY:
             return await self.generate_image_dalle(prompt, filename)
