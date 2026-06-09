@@ -102,3 +102,16 @@ async def debug_sentence_file():
         "listdir_cwd": os.listdir(".")[:20] if os.path.exists(".") else [],
         "listdir_app": os.listdir("/app")[:20] if os.path.exists("/app") else []
     }
+
+
+@app.get("/debug/ai-config")
+async def debug_ai_config():
+    """调试端点：检查 AI 图片生成配置"""
+    return {
+        "openai_api_key_configured": bool(settings.OPENAI_API_KEY),
+        "openai_api_key_prefix": settings.OPENAI_API_KEY[:10] + "..." if settings.OPENAI_API_KEY else None,
+        "openai_api_base": settings.OPENAI_API_BASE,
+        "openai_image_model": settings.OPENAI_IMAGE_MODEL,
+        "output_dir_path": settings.OUTPUT_DIR_PATH,
+        "stability_api_key_configured": bool(settings.STABILITY_API_KEY)
+    }
