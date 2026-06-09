@@ -28,8 +28,8 @@ class Content(Base):
     image_url = Column(String(255), comment="图片URL")
     logo_version = Column(String(20), comment="logo版本(原色/反白)")
     status = Column(
-        Enum(ContentStatus),
-        default=ContentStatus.PENDING,
+        String(20),  # 改为 String 类型，避免 SQLAlchemy Enum 的序列化问题
+        default=ContentStatus.PENDING.value,
         nullable=False,
         comment="状态"
     )
@@ -48,7 +48,7 @@ class PublishLog(Base):
     content_id = Column(Integer, ForeignKey("content.id"), nullable=False)
     weibo_id = Column(String(50), comment="微博ID")
     status = Column(
-        Enum(PublishStatus),
+        String(20),  # 改为 String 类型
         nullable=False,
         comment="发布状态"
     )
